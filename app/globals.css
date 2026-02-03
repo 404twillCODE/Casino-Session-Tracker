@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #0f1114;
+  --surface: #1a1d21;
+  --surface-elevated: #22262b;
+  --teal: #2dd4bf;
+  --teal-glow: rgba(45, 212, 191, 0.15);
+  --text: #e8eaed;
+  --text-muted: #9ca3af;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+/* Subtle depth for cards */
+.bg-surface {
+  background: var(--surface);
+}
+.bg-surface-elevated {
+  background: var(--surface-elevated);
+}
