@@ -8,27 +8,42 @@ import type { TransactionType } from "@/lib/types";
 interface MoneyModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (amountCents: number, note: string | null) => Promise<void>;
+  onSave: (amountCents: number, note: string | null, game: string | null) => Promise<void>;
   type: TransactionType;
+  initialAmountCents?: number | null;
+  initialGame?: string | null;
 }
 
-export function MoneyModal({ isOpen, onClose, onSave, type }: MoneyModalProps) {
+export function MoneyModal({
+  isOpen,
+  onClose,
+  onSave,
+  type,
+  initialAmountCents = null,
+  initialGame = null,
+}: MoneyModalProps) {
   const [amountInput, setAmountInput] = useState("");
   const [note, setNote] = useState("");
+  const [game, setGame] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const label = type === "cash_in" ? "Cash In" : "Cash Out";
+  const label = type === "cash_in" ? "Buy In" : "Cash Out";
 
   useEffect(() => {
     if (isOpen) {
-      setAmountInput("");
+      if (initialAmountCents && initialAmountCents > 0) {
+        setAmountInput(formatMoney(initialAmountCents).replace(/[$,]/g, ""));
+      } else {
+        setAmountInput("");
+      }
+      setGame(initialGame ?? "");
       setNote("");
       setError(null);
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [isOpen]);
+  }, [isOpen, initialAmountCents, initialGame]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -40,7 +55,7 @@ export function MoneyModal({ isOpen, onClose, onSave, type }: MoneyModalProps) {
     }
     setSaving(true);
     try {
-      await onSave(cents, note.trim() || null);
+      await onSave(cents, note.trim() || null, game.trim() || null);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -79,6 +94,16 @@ export function MoneyModal({ isOpen, onClose, onSave, type }: MoneyModalProps) {
                 value={amountInput}
                 onChange={(e) => setAmountInput(e.target.value)}
                 placeholder="0.00"
+                className="w-full px-3 py-2.5 rounded-lg bg-[#0f1114] border border-[#2a2f36] text-white placeholder-[#6b7280] focus:outline-none focus:border-[#2dd4bf] focus:ring-1 focus:ring-[#2dd4bf]/30 transition-colors mb-4"
+              />
+              <label className="block text-sm font-medium text-[#9ca3af] mb-1.5">
+                Game (optional)
+              </label>
+              <input
+                type="text"
+                value={game}
+                onChange={(e) => setGame(e.target.value)}
+                placeholder="e.g. Blackjack"
                 className="w-full px-3 py-2.5 rounded-lg bg-[#0f1114] border border-[#2a2f36] text-white placeholder-[#6b7280] focus:outline-none focus:border-[#2dd4bf] focus:ring-1 focus:ring-[#2dd4bf]/30 transition-colors mb-4"
               />
               <label className="block text-sm font-medium text-[#9ca3af] mb-1.5">

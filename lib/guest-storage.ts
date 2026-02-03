@@ -16,6 +16,7 @@ export interface GuestTransaction {
   amount_cents: number;
   occurred_at: string;
   note: string | null;
+  game: string | null;
   created_at: string;
 }
 
@@ -104,7 +105,8 @@ export function addGuestTransaction(
   sessionId: string,
   type: GuestTransactionType,
   amountCents: number,
-  note: string | null
+  note: string | null,
+  game: string | null
 ): GuestTransaction | null {
   if (amountCents <= 0) return null;
   const store = getStore();
@@ -117,6 +119,7 @@ export function addGuestTransaction(
     amount_cents: amountCents,
     occurred_at: nowIso(),
     note,
+    game,
     created_at: nowIso(),
   };
   store.transactions.unshift(tx);

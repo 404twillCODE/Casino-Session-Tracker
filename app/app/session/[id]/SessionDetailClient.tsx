@@ -10,6 +10,7 @@ import { KpiCard } from "@/components/KpiCard";
 import { MoneyModal } from "@/components/MoneyModal";
 import { TransactionList } from "@/components/TransactionList";
 import { EndSessionButton } from "@/components/EndSessionButton";
+import { parseMoneyToCents, formatMoney } from "@/lib/format";
 import type { Session, Transaction, TransactionType } from "@/lib/types";
 
 interface SessionDetailClientProps {
@@ -45,10 +46,22 @@ export function SessionDetailClient({
   const [netCents, setNetCents] = useState(initialNetCents);
   const [endedAt, setEndedAt] = useState<string | null>(session.ended_at);
   const [modalType, setModalType] = useState<TransactionType | null>(null);
-  const [notes, setNotes] = useState(session.notes ?? "");
+  const [budgetInput, setBudgetInput] = useState(
+    session.budget_cents ? (session.budget_cents / 100).toFixed(2) : ""
+  );
+  const [budgetCents, setBudgetCents] = useState<number | null>(
+    session.budget_cents ?? null
+  );
+
+  const chipPresets = [25, 75, 150, 300, 600];
 
   const addTransaction = useCallback(
-    async (type: TransactionType, amountCents: number, note: string | null) => {
+    async (
+      type: TransactionType,
+      amountCents: number,
+      note: string | null,
+      game: string | null
+    ) => {
       if (amountCents <= 0) {
         toast.error("Amount must be greater than zero.");
         return;
@@ -69,6 +82,7 @@ export function SessionDetailClient({
           type,
           amount_cents: amountCents,
           note: note ?? null,
+          game: game ?? null,
         })
         .select()
         .single();
@@ -86,28 +100,51 @@ export function SessionDetailClient({
     [session.id, supabase, router]
   );
 
-  const handleSaveTransaction = useCallback(
-    async (amountCents: number, note: string | null) => {
-      if (!modalType) return;
-      await addTransaction(modalType, amountCents, note);
+  const addQuickChip = useCallback(
+    async (type: TransactionType, amountCents: number) => {
+      await addTransaction(type, amountCents, null, null);
       toast.success(
-        modalType === "cash_in" ? "Cash in recorded." : "Cash out recorded."
+        `${type === "cash_in" ? "Buy In" : "Cash Out"} ${formatMoney(amountCents)}`
+      );
+    },
+    [addTransaction]
+  );
+
+  const handleSaveTransaction = useCallback(
+    async (amountCents: number, note: string | null, game: string | null) => {
+      if (!modalType) return;
+      await addTransaction(modalType, amountCents, note, game);
+      toast.success(
+        modalType === "cash_in" ? "Buy in recorded." : "Cash out recorded."
       );
     },
     [modalType, addTransaction]
   );
 
-  const saveNotes = useCallback(async () => {
+  const saveBudget = useCallback(async () => {
+    if (budgetInput.trim() === "") {
+      setBudgetCents(null);
+      const { error } = await supabase
+        .from("sessions")
+        .update({ budget_cents: null })
+        .eq("id", session.id);
+      if (error) toast.error("Could not clear budget.");
+      else router.refresh();
+      return;
+    }
+    const cents = parseMoneyToCents(budgetInput);
+    if (!cents || cents <= 0) {
+      toast.error("Enter a valid budget.");
+      return;
+    }
+    setBudgetCents(cents);
     const { error } = await supabase
       .from("sessions")
-      .update({ notes: notes.trim() || null })
+      .update({ budget_cents: cents })
       .eq("id", session.id);
-    if (error) toast.error("Could not save notes.");
-    else {
-      toast.success("Notes saved.");
-      router.refresh();
-    }
-  }, [session.id, notes, supabase, router]);
+    if (error) toast.error("Could not save budget.");
+    else router.refresh();
+  }, [budgetInput, session.id, supabase, router]);
 
   const endSession = useCallback(async () => {
     const { error } = await supabase
@@ -131,6 +168,10 @@ export function SessionDetailClient({
   }
   const runningNets = runningChrono.reverse();
 
+  const netLoss = Math.max(0, totalInCents - totalOutCents);
+  const budgetRemaining =
+    budgetCents !== null ? Math.max(0, budgetCents - netLoss) : null;
+
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-center gap-4">
@@ -142,7 +183,7 @@ export function SessionDetailClient({
         </Link>
       </div>
 
-      <header>
+      <header className="space-y-2">
         <h1 className="text-xl font-semibold text-white">
           Session · {formatSessionDate(session.started_at)}
         </h1>
@@ -164,47 +205,135 @@ export function SessionDetailClient({
         </div>
       </section>
 
-      {!endedAt && (
-        <section className="flex flex-wrap gap-3">
-          <motion.button
-            type="button"
-            onClick={() => setModalType("cash_in")}
-            whileHover={{ scale: 1.02, boxShadow: "0 0 20px rgba(45, 212, 191, 0.12)", borderColor: "rgba(45, 212, 191, 0.35)" }}
-            whileTap={{ scale: 0.98 }}
-            className="rounded-xl bg-[#1a1d21] border border-[#2a2f36] px-6 py-4 text-left min-w-[160px] transition-all duration-200"
-          >
-            <span className="block text-2xl font-semibold text-[#2dd4bf]">+ Cash In</span>
-            <span className="block text-xs text-[#9ca3af] mt-0.5">Add buy-in</span>
-          </motion.button>
-          <motion.button
-            type="button"
-            onClick={() => setModalType("cash_out")}
-            whileHover={{ scale: 1.02, boxShadow: "0 0 20px rgba(45, 212, 191, 0.12)", borderColor: "rgba(45, 212, 191, 0.35)" }}
-            whileTap={{ scale: 0.98 }}
-            className="rounded-xl bg-[#1a1d21] border border-[#2a2f36] px-6 py-4 text-left min-w-[160px] transition-all duration-200"
-          >
-            <span className="block text-2xl font-semibold text-[#5eead4]">+ Cash Out</span>
-            <span className="block text-xs text-[#9ca3af] mt-0.5">Record cash out</span>
-          </motion.button>
-        </section>
-      )}
-
-      <section>
-        <h2 className="text-sm font-medium uppercase tracking-wider text-[#9ca3af] mb-3">
-          Notes
-        </h2>
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="rounded-xl bg-[#1a1d21] border border-[#2a2f36] p-4">
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            onBlur={saveNotes}
-            placeholder="Optional session notes…"
-            rows={2}
-            className="w-full resize-none rounded-lg bg-[#0f1114] border border-[#2a2f36] px-3 py-2 text-sm text-white placeholder-[#6b7280] focus:outline-none focus:border-[#2dd4bf]/50 transition-colors"
+          <label className="block text-xs font-medium uppercase tracking-wider text-[#9ca3af] mb-2">
+            Session budget (optional)
+          </label>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={budgetInput}
+            onChange={(e) => setBudgetInput(e.target.value)}
+            onBlur={saveBudget}
+            placeholder="e.g. 500"
+            className="w-full rounded-lg bg-[#0f1114] border border-[#2a2f36] px-3 py-2 text-sm text-white placeholder-[#6b7280] focus:outline-none focus:border-[#2dd4bf]/60 focus:ring-1 focus:ring-[#2dd4bf]/40 transition-colors"
           />
-          <p className="text-xs text-[#6b7280] mt-1">Saved automatically on blur.</p>
+          <p className="text-xs text-[#6b7280] mt-2">
+            Max you want to risk for this session. Saved on blur.
+          </p>
+        </div>
+        <div className="rounded-xl bg-[#1a1d21] border border-[#2a2f36] p-4">
+          <p className="text-xs font-medium uppercase tracking-wider text-[#9ca3af] mb-2">
+            Budget remaining
+          </p>
+          <p className="text-lg font-semibold text-white">
+            {budgetRemaining !== null ? formatMoney(budgetRemaining) : "—"}
+          </p>
+          <p className="text-xs text-[#6b7280] mt-2">
+            Based on total loss (Total In - Total Out).
+          </p>
         </div>
       </section>
+
+      {!endedAt && (
+        <section className="space-y-4">
+          <div className="flex flex-wrap gap-3">
+            <motion.button
+              type="button"
+              onClick={() => setModalType("cash_in")}
+              whileHover={{
+                scale: 1.02,
+                boxShadow: "0 0 20px rgba(45, 212, 191, 0.12)",
+                borderColor: "rgba(45, 212, 191, 0.35)",
+              }}
+              whileTap={{ scale: 0.98 }}
+              className="rounded-xl bg-[#1a1d21] border border-[#2a2f36] px-6 py-4 text-left min-w-[170px] transition-all duration-200"
+            >
+              <span className="flex items-center gap-2 text-2xl font-semibold text-emerald-400">
+                <span className="inline-flex h-5 w-5 rounded-full bg-emerald-500/30 border border-emerald-400/40" />
+                Buy In
+              </span>
+              <span className="block text-xs text-[#9ca3af] mt-0.5">Add money to play</span>
+            </motion.button>
+            <motion.button
+              type="button"
+              onClick={() => setModalType("cash_out")}
+              whileHover={{
+                scale: 1.02,
+                boxShadow: "0 0 20px rgba(239, 68, 68, 0.12)",
+                borderColor: "rgba(239, 68, 68, 0.35)",
+              }}
+              whileTap={{ scale: 0.98 }}
+              className="rounded-xl bg-[#1a1d21] border border-[#2a2f36] px-6 py-4 text-left min-w-[170px] transition-all duration-200"
+            >
+              <span className="block text-2xl font-semibold text-red-400">- Cash Out</span>
+              <span className="block text-xs text-[#9ca3af] mt-0.5">Record a cash out</span>
+            </motion.button>
+          </div>
+
+          <div className="rounded-xl bg-[#1a1d21] border border-[#2a2f36] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+              <h3 className="text-xs font-medium uppercase tracking-wider text-[#9ca3af]">
+                Quick chips
+              </h3>
+              <div className="flex items-center gap-2 text-xs text-[#6b7280]">
+                Tap to add instantly. Use Custom to add a note or game.
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <p className="text-xs text-emerald-400 font-medium uppercase tracking-wider">
+                  Buy In
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {chipPresets.map((amount) => (
+                    <button
+                      key={`buy-${amount}`}
+                      type="button"
+                      onClick={() => addQuickChip("cash_in", amount * 100)}
+                      className="px-3 py-1.5 rounded-full border border-emerald-400/30 text-emerald-300 text-sm hover:bg-emerald-500/10 transition-colors"
+                    >
+                      +${amount}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setModalType("cash_in")}
+                    className="px-3 py-1.5 rounded-full border border-[#2a2f36] text-[#9ca3af] text-sm hover:bg-[#2a2f36] transition-colors"
+                  >
+                    Custom
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className="text-xs text-red-400 font-medium uppercase tracking-wider">
+                  Cash Out
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {chipPresets.map((amount) => (
+                    <button
+                      key={`out-${amount}`}
+                      type="button"
+                      onClick={() => addQuickChip("cash_out", amount * 100)}
+                      className="px-3 py-1.5 rounded-full border border-red-400/30 text-red-300 text-sm hover:bg-red-500/10 transition-colors"
+                    >
+                      -${amount}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setModalType("cash_out")}
+                    className="px-3 py-1.5 rounded-full border border-[#2a2f36] text-[#9ca3af] text-sm hover:bg-[#2a2f36] transition-colors"
+                  >
+                    Custom
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       <section>
         <h2 className="text-sm font-medium uppercase tracking-wider text-[#9ca3af] mb-3">

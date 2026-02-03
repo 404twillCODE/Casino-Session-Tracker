@@ -1,6 +1,6 @@
 # SessionStack
 
-Casino session tracker: log Cash In / Cash Out over time, see per-session and all-time totals.
+Casino session tracker: log Buy In / Cash Out over time, see per-session and all-time totals.
 
 ## Tech
 
@@ -36,7 +36,8 @@ Do these in order:
    In Supabase → SQL Editor, paste and run the full contents of `supabase/schema.sql`.  
    This creates:
    - `sessions` (user_id → auth.users(id), started_at, ended_at, casino_name, notes)
-   - `transactions` (session_id → sessions(id) ON DELETE CASCADE, user_id → auth.users(id), type, amount_cents, occurred_at, note)
+   - `transactions` (session_id → sessions(id) ON DELETE CASCADE, user_id → auth.users(id), type, amount_cents, occurred_at, note, game)
+   - `user_settings` (user_id → auth.users(id), global_budget_cents)
    - Indexes on (user_id, started_at desc), (session_id, occurred_at desc), (user_id, occurred_at desc)
 
 4. **Run RLS**  
@@ -96,4 +97,5 @@ On the login page, you can **Continue as guest**. Guest mode stores all data **l
 - `lib/` – Supabase client/server/middleware, env validation, types, format (money), data helpers.
 - `supabase/` – `schema.sql`, `rls.sql`, `seed.sql` (optional commented examples for debugging).
 
-Amounts are stored in cents (integer); the UI uses a single USD formatter and accepts dollar input (e.g. `20`, `20.5`, `$20.50`).
+Amounts are stored in cents (integer); the UI uses a single USD formatter and accepts dollar input (e.g. `20`, `20.5`, `$20.50`).  
+Profile page shows daily totals and lets you set a global budget and reset the account.

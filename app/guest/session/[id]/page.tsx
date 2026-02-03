@@ -15,7 +15,6 @@ import {
   getGuestSession,
   getGuestSessionTotals,
   getGuestTransactions,
-  updateGuestSessionNotes,
 } from "@/lib/guest-storage";
 import type { Transaction, TransactionType } from "@/lib/types";
 
@@ -36,7 +35,6 @@ export default function GuestSessionPage() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [session, setSession] = useState<ReturnType<typeof getGuestSession> | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [notes, setNotes] = useState("");
   const [endedAt, setEndedAt] = useState<string | null>(null);
   const [totals, setTotals] = useState({ totalInCents: 0, totalOutCents: 0, netCents: 0 });
 
@@ -47,7 +45,6 @@ export default function GuestSessionPage() {
     const s = getGuestSession(id);
     if (!s) return;
     setSession(s);
-    setNotes(s.notes ?? "");
     setEndedAt(s.ended_at);
     const txs = getGuestTransactions(id).map((t) => ({ ...t, user_id: "guest" }));
     setTransactions(txs);
@@ -67,9 +64,19 @@ export default function GuestSessionPage() {
     return runningChrono.reverse();
   }, [transactions]);
 
-  async function handleSaveTransaction(amountCents: number, note: string | null) {
+  async function handleSaveTransaction(
+    amountCents: number,
+    note: string | null,
+    game: string | null
+  ) {
     if (!sessionId || !modalType) return;
-    const tx = addGuestTransaction(sessionId, modalType, amountCents, note ?? null);
+    const tx = addGuestTransaction(
+      sessionId,
+      modalType,
+      amountCents,
+      note ?? null,
+      game ?? null
+    );
     if (!tx) {
       toast.error("Amount must be greater than zero.");
       return;
@@ -86,12 +93,6 @@ export default function GuestSessionPage() {
     const updated = getGuestSession(sessionId);
     setEndedAt(updated?.ended_at ?? null);
     toast.success("Session ended.");
-  }
-
-  function handleNotesBlur() {
-    if (!sessionId) return;
-    updateGuestSessionNotes(sessionId, notes.trim() || null);
-    toast.success("Notes saved.");
   }
 
   if (!session) {
@@ -150,42 +151,33 @@ export default function GuestSessionPage() {
           <motion.button
             type="button"
             onClick={() => setModalType("cash_in")}
-            whileHover={{ scale: 1.02, boxShadow: "0 0 20px rgba(45, 212, 191, 0.12)", borderColor: "rgba(45, 212, 191, 0.35)" }}
+            whileHover={{
+              scale: 1.02,
+              boxShadow: "0 0 20px rgba(45, 212, 191, 0.12)",
+              borderColor: "rgba(45, 212, 191, 0.35)",
+            }}
             whileTap={{ scale: 0.98 }}
             className="rounded-xl bg-[#1a1d21] border border-[#2a2f36] px-6 py-4 text-left min-w-[160px] transition-all duration-200"
           >
-            <span className="block text-2xl font-semibold text-[#2dd4bf]">+ Cash In</span>
-            <span className="block text-xs text-[#9ca3af] mt-0.5">Add buy-in</span>
+            <span className="block text-2xl font-semibold text-emerald-400">+ Buy In</span>
+            <span className="block text-xs text-[#9ca3af] mt-0.5">Add money to play</span>
           </motion.button>
           <motion.button
             type="button"
             onClick={() => setModalType("cash_out")}
-            whileHover={{ scale: 1.02, boxShadow: "0 0 20px rgba(45, 212, 191, 0.12)", borderColor: "rgba(45, 212, 191, 0.35)" }}
+            whileHover={{
+              scale: 1.02,
+              boxShadow: "0 0 20px rgba(239, 68, 68, 0.12)",
+              borderColor: "rgba(239, 68, 68, 0.35)",
+            }}
             whileTap={{ scale: 0.98 }}
             className="rounded-xl bg-[#1a1d21] border border-[#2a2f36] px-6 py-4 text-left min-w-[160px] transition-all duration-200"
           >
-            <span className="block text-2xl font-semibold text-[#5eead4]">+ Cash Out</span>
-            <span className="block text-xs text-[#9ca3af] mt-0.5">Record cash out</span>
+            <span className="block text-2xl font-semibold text-red-400">- Cash Out</span>
+            <span className="block text-xs text-[#9ca3af] mt-0.5">Record a cash out</span>
           </motion.button>
         </section>
       )}
-
-      <section>
-        <h2 className="text-sm font-medium uppercase tracking-wider text-[#9ca3af] mb-3">
-          Notes
-        </h2>
-        <div className="rounded-xl bg-[#1a1d21] border border-[#2a2f36] p-4">
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            onBlur={handleNotesBlur}
-            placeholder="Optional session notes…"
-            rows={2}
-            className="w-full resize-none rounded-lg bg-[#0f1114] border border-[#2a2f36] px-3 py-2 text-sm text-white placeholder-[#6b7280] focus:outline-none focus:border-[#2dd4bf]/50 transition-colors"
-          />
-          <p className="text-xs text-[#6b7280] mt-1">Saved locally on blur.</p>
-        </div>
-      </section>
 
       <section>
         <h2 className="text-sm font-medium uppercase tracking-wider text-[#9ca3af] mb-3">

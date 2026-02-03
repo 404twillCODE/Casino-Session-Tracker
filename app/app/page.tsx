@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getSessionsWithTotals, getAllTimeTotals } from "@/lib/data";
 import { hasSupabaseEnv } from "@/lib/env";
 import { KpiCard } from "@/components/KpiCard";
-import { SessionCard } from "@/components/SessionCard";
+import { SessionGroupList } from "@/components/SessionGroupList";
 
 export default async function AppDashboardPage() {
   if (!hasSupabaseEnv()) {
@@ -30,6 +30,24 @@ export default async function AppDashboardPage() {
   ]);
 
   const isDev = process.env.NODE_ENV === "development";
+  const grouped = sessions.reduce<Record<string, { label: string; dateKey: string; sessions: typeof sessions }>>(
+    (acc, session) => {
+      const date = new Date(session.started_at);
+      const dateKey = date.toISOString().slice(0, 10);
+      const label = date.toLocaleDateString(undefined, {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      });
+      if (!acc[dateKey]) {
+        acc[dateKey] = { label, dateKey, sessions: [] };
+      }
+      acc[dateKey].sessions.push(session);
+      return acc;
+    },
+    {}
+  );
+  const groups = Object.values(grouped).sort((a, b) => (a.dateKey < b.dateKey ? 1 : -1));
 
   return (
     <div className="space-y-8">
@@ -83,11 +101,7 @@ export default async function AppDashboardPage() {
             </Link>
           </div>
         ) : (
-          <div className="space-y-2">
-            {sessions.map((session, i) => (
-              <SessionCard key={session.id} session={session} index={i} />
-            ))}
-          </div>
+          <SessionGroupList groups={groups} />
         )}
       </section>
     </div>

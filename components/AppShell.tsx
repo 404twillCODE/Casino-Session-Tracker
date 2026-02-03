@@ -30,6 +30,12 @@ export function AppShell({ children }: AppShellProps) {
             SessionStack
           </Link>
           <div className="flex items-center gap-3">
+            <Link
+              href="/app/profile"
+              className="text-sm text-[#9ca3af] hover:text-white px-2 py-1.5 rounded-lg hover:bg-[#2a2f36] transition-colors"
+            >
+              Profile
+            </Link>
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
